@@ -1198,55 +1198,72 @@ async function compileMindTargets() {
 }
 
 /* =====================================================
-   FIX 1 + FIX 2: buildAFrameScene — камера на весь экран + iOS видео
+   ГЛАВНОЕ ИСПРАВЛЕНИЕ: buildAFrameScene
+   Проблема: <a-video> не рендерит текстуру на мобильных iOS/Android.
+   Решение: <a-plane> + material="src" напрямую берёт живой видеопоток как текстуру.
+   Видео создаём JS-объектом, передаём в material через ссылку на DOM-элемент.
 ===================================================== */
 function buildAFrameScene(mindFileURL) {
   const container = document.getElementById('aframe-container');
   container.innerHTML = '';
   videoEls = [];
 
-  // FIX 2: Создаём видео-элементы с muted для iOS autoplay
+  // Создаём <video> элементы заранее — они будут источником текстуры для a-plane
   state.students.forEach((s, i) => {
     const vid = document.createElement('video');
     vid.id = `ar-video-${i}`;
     vid.src = s.videoBase64;
     vid.loop = true;
-    vid.muted = true;           // ОБЯЗАТЕЛЬНО для iOS autoplay
+    vid.muted = true;          // muted = iOS разрешает autoplay
     vid.playsInline = true;
     vid.setAttribute('webkit-playsinline', '');
     vid.setAttribute('playsinline', '');
+    vid.setAttribute('crossorigin', 'anonymous');
     vid.preload = 'auto';
-    vid.style.cssText = 'position:fixed;bottom:-9999px;width:1px;height:1px;opacity:0;pointer-events:none';
+    // Скрываем но оставляем в DOM — Three.js читает кадры напрямую
+    vid.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0.01;pointer-events:none';
     document.body.appendChild(vid);
     videoEls.push(vid);
   });
 
+  // Строим a-scene — используем <a-plane> вместо <a-video>
+  // <a-plane> + material="src: #id" = надёжный рендер видео на мобильных
   const targets = state.students.map((s, i) => {
-    const animAttr = getAnimationAttr(s.anim || 'fade');
+    const anim = s.anim || 'fade';
+    const frameEl = (anim === 'frame')
+      ? `<a-plane width="1.08" height="0.65" position="0 0 -0.002" material="color: #C8972A; opacity: 0.9"></a-plane>`
+      : '';
+    // Используем a-plane вместо a-video — ключевое исправление
     return `
-      <a-entity mindar-image-target="targetIndex: ${i}">
-        ${(s.anim === 'frame') ? `<a-plane width="1.06" height="0.63" position="0 0 -0.001" color="#C8972A" opacity="0.85"></a-plane>` : ''}
-        <a-video id="av-${i}" src="#ar-asset-${i}" width="1" height="0.5625" position="0 0 0.001" ${animAttr}></a-video>
+      <a-entity mindar-image-target="targetIndex: ${i}" id="target-entity-${i}">
+        ${frameEl}
+        <a-plane
+          id="ar-plane-${i}"
+          width="1"
+          height="0.5625"
+          position="0 0 0.001"
+          material="src: #ar-video-${i}; shader: flat; side: front"
+          visible="false"
+        ></a-plane>
       </a-entity>`;
   }).join('\n');
 
-  // FIX 2: assets внутри a-scene — правильный способ для A-Frame
+  // Assets — регистрируем video элементы в a-assets для Three.js
   const assets = state.students.map((s, i) =>
-    `<video id="ar-asset-${i}" src="${s.videoBase64}" loop muted playsinline webkit-playsinline preload="auto" crossorigin="anonymous"></video>`
+    `<video id="ar-video-${i}" src="${s.videoBase64}" loop muted playsinline webkit-playsinline preload="auto" crossorigin="anonymous"></video>`
   ).join('\n');
 
-  // FIX 1: атрибут embedded — CSS контролирует размер, не A-Frame
   container.innerHTML = `
     <a-scene
       id="mindar-scene"
       mindar-image="imageTargetSrc: ${mindFileURL}; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; maxTrack: ${Math.min(state.students.length, 3)}"
       color-space="sRGB"
-      renderer="colorManagement: true; physicallyCorrectLights: true"
+      renderer="colorManagement: true; physicallyCorrectLights: false; antialias: true"
       vr-mode-ui="enabled: false"
       device-orientation-permission-ui="enabled: false"
       embedded
     >
-      <a-assets timeout="30000">${assets}</a-assets>
+      <a-assets timeout="60000">${assets}</a-assets>
       <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
       ${targets}
     </a-scene>`;
@@ -1255,28 +1272,14 @@ function buildAFrameScene(mindFileURL) {
   scene.addEventListener('loaded', () => {
     setupAREventListeners(scene);
     document.getElementById('ar-loading').style.display = 'none';
-    // FIX 2: показываем кнопку звука через 2 сек после загрузки
     setTimeout(() => {
       document.getElementById('unmute-btn').classList.add('show');
-    }, 2000);
+    }, 1500);
   });
 }
 
-function getAnimationAttr(anim) {
-  switch(anim) {
-    case 'scale':
-      return `animation__appear="property: scale; from: 0 0 0; to: 1 1 1; dur: 500; easing: easeOutElastic; startEvents: targetFound" animation__disappear="property: scale; from: 1 1 1; to: 0 0 0; dur: 300; easing: easeInQuad; startEvents: targetLost" scale="0 0 0"`;
-    case 'slide':
-      return `animation__appear="property: position; from: 0 -1 0; to: 0 0 0; dur: 500; easing: easeOutCubic; startEvents: targetFound" animation__disappear="property: position; from: 0 0 0; to: 0 -1 0; dur: 300; easing: easeInCubic; startEvents: targetLost"`;
-    case 'glow':
-      return `material="color: #FFFFFF; emissive: #4488FF; emissiveIntensity: 0.5; transparent: true; opacity: 0" animation__appear="property: material.opacity; from: 0; to: 1; dur: 800; easing: easeInOutSine; startEvents: targetFound" animation__disappear="property: material.opacity; from: 1; to: 0; dur: 300; startEvents: targetLost"`;
-    default:
-      return `animation__appear="property: material.opacity; from: 0; to: 1; dur: 600; easing: easeInQuad; startEvents: targetFound" animation__disappear="property: material.opacity; from: 1; to: 0; dur: 300; startEvents: targetLost" material="opacity: 0; transparent: true"`;
-  }
-}
-
 /* =====================================================
-   FIX 2: setupAREventListeners — принудительный play() для iOS
+   setupAREventListeners — показ/скрытие a-plane + play/pause видео
 ===================================================== */
 function setupAREventListeners(scene) {
   const dot  = document.getElementById('status-dot');
@@ -1293,24 +1296,31 @@ function setupAREventListeners(scene) {
       text.textContent = `🎬 Показываю: ${s.name}`;
       hint.style.opacity = '0';
 
-      // FIX 2: Запускаем оба видео-элемента
-      const vid = videoEls[i];
+      // Получаем <video> из DOM (не из a-assets — там копия)
+      const vid = document.getElementById(`ar-video-${i}`);
       if (vid) {
         vid.currentTime = 0;
-        const p = vid.play();
-        if (p !== undefined) {
-          p.catch(() => {
-            document.getElementById('unmute-btn').classList.add('show');
-          });
-        }
+        vid.muted = true;
+        vid.play().catch(() => {
+          document.getElementById('unmute-btn').classList.add('show');
+        });
       }
 
-      // Также запускаем asset внутри a-scene
-      const assetVid = document.getElementById(`ar-asset-${i}`);
-      if (assetVid) {
-        assetVid.currentTime = 0;
-        assetVid.play().catch(() => {});
+      // Показываем plane и обновляем материал — принудительно обновляем текстуру
+      const plane = scene.querySelector(`#ar-plane-${i}`);
+      if (plane) {
+        plane.setAttribute('visible', 'true');
+        // Принудительно обновляем текстуру через A-Frame material
+        const mat = plane.getObject3D('mesh');
+        if (mat && mat.material && mat.material.map) {
+          mat.material.map.needsUpdate = true;
+        }
+        // Запускаем цикл обновления текстуры пока видео играет
+        startTextureUpdate(i, plane, vid);
       }
+
+      // Анимация появления
+      applyShowAnimation(plane, s.anim || 'fade');
     });
 
     entity.addEventListener('targetLost', () => {
@@ -1318,41 +1328,108 @@ function setupAREventListeners(scene) {
       text.textContent = 'Ищу фотографию…';
       hint.style.opacity = '1';
 
-      const vid = videoEls[i];
+      const vid = document.getElementById(`ar-video-${i}`);
       if (vid) { vid.pause(); vid.currentTime = 0; }
 
-      const assetVid = document.getElementById(`ar-asset-${i}`);
-      if (assetVid) { assetVid.pause(); assetVid.currentTime = 0; }
+      const plane = scene.querySelector(`#ar-plane-${i}`);
+      if (plane) {
+        applyHideAnimation(plane, s.anim || 'fade', () => {
+          plane.setAttribute('visible', 'false');
+        });
+      }
+
+      stopTextureUpdate(i);
     });
   });
+}
+
+// Карта для RAF-циклов обновления текстур
+const textureRAFs = {};
+
+function startTextureUpdate(index, planeEl, videoEl) {
+  stopTextureUpdate(index);
+  function update() {
+    if (!videoEl || videoEl.paused || videoEl.ended) return;
+    const mesh = planeEl.getObject3D('mesh');
+    if (mesh && mesh.material && mesh.material.map) {
+      mesh.material.map.needsUpdate = true;
+    }
+    textureRAFs[index] = requestAnimationFrame(update);
+  }
+  textureRAFs[index] = requestAnimationFrame(update);
+}
+
+function stopTextureUpdate(index) {
+  if (textureRAFs[index]) {
+    cancelAnimationFrame(textureRAFs[index]);
+    delete textureRAFs[index];
+  }
+}
+
+// Анимации появления/скрытия через A-Frame setAttribute
+function applyShowAnimation(plane, anim) {
+  if (!plane) return;
+  plane.removeAttribute('animation__hide');
+  switch(anim) {
+    case 'scale':
+      plane.setAttribute('scale', '0 0 0');
+      plane.setAttribute('animation__show', 'property: scale; from: 0 0 0; to: 1 1 1; dur: 500; easing: easeOutElastic');
+      break;
+    case 'slide':
+      plane.setAttribute('position', '0 -1 0.001');
+      plane.setAttribute('animation__show', 'property: position; from: 0 -1 0.001; to: 0 0 0.001; dur: 500; easing: easeOutCubic');
+      break;
+    default: // fade, glow, frame
+      plane.setAttribute('material', `src: #ar-video-${plane.id.replace('ar-plane-','')}; shader: flat; opacity: 0; transparent: true`);
+      plane.setAttribute('animation__show', 'property: material.opacity; from: 0; to: 1; dur: 600; easing: easeInQuad');
+  }
+}
+
+function applyHideAnimation(plane, anim, onDone) {
+  if (!plane) { onDone && onDone(); return; }
+  plane.removeAttribute('animation__show');
+  switch(anim) {
+    case 'scale':
+      plane.setAttribute('animation__hide', 'property: scale; from: 1 1 1; to: 0 0 0; dur: 300; easing: easeInQuad');
+      setTimeout(onDone, 320);
+      break;
+    case 'slide':
+      plane.setAttribute('animation__hide', 'property: position; from: 0 0 0.001; to: 0 -1 0.001; dur: 300; easing: easeInCubic');
+      setTimeout(onDone, 320);
+      break;
+    default:
+      plane.setAttribute('animation__hide', 'property: material.opacity; from: 1; to: 0; dur: 300');
+      setTimeout(onDone, 320);
+  }
 }
 
 /* =====================================================
    FIX 2: unmuteVideos — включаем звук после user gesture
 ===================================================== */
 function unmuteVideos() {
-  videoEls.forEach(v => {
+  // Unmute все видео в DOM (и внешние, и в a-assets)
+  document.querySelectorAll('video[id^="ar-video-"]').forEach(v => {
     v.muted = false;
     v.play().catch(() => {});
-  });
-  // Также unmute assets внутри a-scene
-  state.students.forEach((s, i) => {
-    const assetVid = document.getElementById(`ar-asset-${i}`);
-    if (assetVid) {
-      assetVid.muted = false;
-      assetVid.play().catch(() => {});
-    }
   });
   document.getElementById('unmute-btn').classList.remove('show');
   toast('🔊 Звук включён', 'success');
 }
 
 function stopAR() {
-  // FIX 2: скрываем кнопку звука при выходе
   document.getElementById('unmute-btn').classList.remove('show');
 
+  // Останавливаем все RAF-циклы обновления текстур
+  Object.keys(textureRAFs).forEach(k => {
+    cancelAnimationFrame(textureRAFs[k]);
+    delete textureRAFs[k];
+  });
+
   state.arRunning = false;
-  videoEls.forEach(v => { try { v.pause(); v.src = ''; v.remove(); } catch(e) {} });
+  // Удаляем все видео-элементы которые создали в DOM
+  document.querySelectorAll('video[id^="ar-video-"]').forEach(v => {
+    try { v.pause(); v.src = ''; v.remove(); } catch(e) {}
+  });
   videoEls = [];
 
   const scene = document.getElementById('mindar-scene');
