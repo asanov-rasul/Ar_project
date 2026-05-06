@@ -1109,10 +1109,71 @@ let state = {
 ===================================================== */
 
 /* =====================================================
+   ХРАНИЛИЩЕ — IndexedDB для больших файлов
+   localStorage лимит ~5-10 МБ — слишком мало для видео!
+===================================================== */
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    if (db) { resolve(db); return; }
+    const req = indexedDB.open('ar_school_db', 2);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('students')) {
+        d.createObjectStore('students', { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+async function saveToStorage() {
+  try {
+    const d = await openDB();
+    const tx = d.transaction('students', 'readwrite');
+    const store = tx.objectStore('students');
+    await new Promise((res, rej) => {
+      const clr = store.clear();
+      clr.onsuccess = res;
+      clr.onerror   = rej;
+    });
+    for (const s of state.students) {
+      await new Promise((res, rej) => {
+        const req = store.put(s);
+        req.onsuccess = res;
+        req.onerror   = rej;
+      });
+    }
+  } catch(e) {
+    console.error('saveToStorage error:', e);
+    throw e;
+  }
+}
+
+async function loadFromStorage() {
+  try {
+    const d = await openDB();
+    const tx    = d.transaction('students', 'readonly');
+    const store = tx.objectStore('students');
+    const result = await new Promise((res, rej) => {
+      const req = store.getAll();
+      req.onsuccess = e => res(e.target.result || []);
+      req.onerror   = e => rej(e.target.error);
+    });
+    state.students = result;
+  } catch(e) {
+    console.warn('IndexedDB load failed:', e);
+    state.students = [];
+  }
+}
+
+/* =====================================================
    ИНИЦИАЛИЗАЦИЯ
 ===================================================== */
-document.addEventListener('DOMContentLoaded', () => {
-  loadFromStorage();
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadFromStorage();
   updateStats();
   checkStudentsForAR();
 });
@@ -1130,22 +1191,6 @@ function showScreen(name) {
   if (name === 'admin') renderStudents();
   if (name === 'ar') checkStudentsForAR();
   if (name === 'home') updateStats();
-}
-
-/* =====================================================
-   ХРАНИЛИЩЕ
-===================================================== */
-function saveToStorage() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.students));
-}
-
-function loadFromStorage() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) state.students = JSON.parse(data);
-  } catch(e) {
-    state.students = [];
-  }
 }
 
 /* =====================================================
@@ -1204,9 +1249,21 @@ async function handlePhotoUpload(input) {
 async function handleVideoUpload(input) {
   if (!input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 50 * 1024 * 1024) { toast('Видео слишком большое (макс 50 МБ)', 'danger'); return; }
-  state.tmpVideoBase64 = await readFileAsBase64(file);
-  document.getElementById('video-name').textContent = '✓ ' + file.name;
+  const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+  if (file.size > 100 * 1024 * 1024) {
+    toast('Видео слишком большое (макс 100 МБ)', 'danger');
+    return;
+  }
+  const nameEl = document.getElementById('video-name');
+  nameEl.textContent = `⏳ Загрузка ${sizeMB} МБ…`;
+  try {
+    state.tmpVideoBase64 = await readFileAsBase64(file);
+    nameEl.textContent = '✓ ' + file.name + ` (${sizeMB} МБ)`;
+    toast('🎬 Видео загружено в память', 'success');
+  } catch(e) {
+    nameEl.textContent = '';
+    toast('❌ Ошибка чтения видео: ' + e.message, 'danger');
+  }
 }
 
 async function handleEditPhoto(input) {
@@ -1224,7 +1281,7 @@ async function handleEditVideo(input) {
 /* =====================================================
    CRUD УЧЕНИКОВ
 ===================================================== */
-function saveStudent() {
+async function saveStudent() {
   const name  = document.getElementById('f-name').value.trim();
   const cls   = document.getElementById('f-class').value.trim();
   const anim  = document.getElementById('f-anim').value;
@@ -1233,6 +1290,12 @@ function saveStudent() {
   if (!cls)                     { toast('Введите класс', 'danger'); return; }
   if (!state.tmpPhotoBase64)    { toast('Загрузите фото ученика', 'danger'); return; }
   if (!state.tmpVideoBase64)    { toast('Загрузите видео', 'danger'); return; }
+
+  // Показываем индикатор загрузки
+  const btn = document.getElementById('save-btn');
+  const origText = btn.innerHTML;
+  btn.innerHTML = '⏳ Сохранение…';
+  btn.disabled = true;
 
   const student = {
     id:          Date.now().toString(),
@@ -1244,12 +1307,22 @@ function saveStudent() {
     createdAt:   new Date().toISOString(),
   };
 
-  state.students.push(student);
-  saveToStorage();
-  resetForm();
-  renderStudents();
-  updateStats();
-  toast(`Ученик "${name}" добавлен`, 'success');
+  try {
+    state.students.push(student);
+    await saveToStorage();
+    resetForm();
+    renderStudents();
+    updateStats();
+    toast(`✅ Ученик "${name}" сохранён`, 'success');
+  } catch(e) {
+    // Откатываем если не сохранилось
+    state.students = state.students.filter(s => s.id !== student.id);
+    toast('❌ Ошибка сохранения: ' + (e.message || e), 'danger');
+    console.error('saveStudent error:', e);
+  } finally {
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }
 }
 
 function resetForm() {
@@ -1266,15 +1339,19 @@ function resetForm() {
   state.tmpVideoBase64 = null;
 }
 
-function deleteStudent(id) {
+async function deleteStudent(id) {
   const s = state.students.find(x => x.id === id);
   if (!s) return;
   if (!confirm(`Удалить ученика "${s.name}"?`)) return;
   state.students = state.students.filter(x => x.id !== id);
-  saveToStorage();
-  renderStudents();
-  updateStats();
-  toast(`Ученик удалён`, 'danger');
+  try {
+    await saveToStorage();
+    renderStudents();
+    updateStats();
+    toast(`🗑️ Ученик удалён`, 'info');
+  } catch(e) {
+    toast('❌ Ошибка удаления: ' + e.message, 'danger');
+  }
 }
 
 // --- Редактирование ---
@@ -1299,7 +1376,7 @@ function closeEditModal() {
   state.editingId = null;
 }
 
-function saveEdit() {
+async function saveEdit() {
   const id  = state.editingId;
   const idx = state.students.findIndex(x => x.id === id);
   if (idx === -1) return;
@@ -1310,10 +1387,14 @@ function saveEdit() {
   if (state.editPhotoBase64) state.students[idx].photoBase64 = state.editPhotoBase64;
   if (state.editVideoBase64) state.students[idx].videoBase64 = state.editVideoBase64;
 
-  saveToStorage();
-  closeEditModal();
-  renderStudents();
-  toast('Данные обновлены', 'success');
+  try {
+    await saveToStorage();
+    closeEditModal();
+    renderStudents();
+    toast('✅ Данные обновлены', 'success');
+  } catch(e) {
+    toast('❌ Ошибка сохранения: ' + e.message, 'danger');
+  }
 }
 
 function cancelEdit() { resetForm(); }
@@ -1456,7 +1537,8 @@ function downloadQR(containerId, filename) {
 /* =====================================================
    ЭКСПОРТ / ИМПОРТ
 ===================================================== */
-function exportData() {
+async function exportData() {
+  await loadFromStorage(); // свежие данные из IndexedDB
   if (state.students.length === 0) { toast('Нечего экспортировать', 'danger'); return; }
   const json = JSON.stringify(state.students, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -1464,27 +1546,26 @@ function exportData() {
   const a    = document.createElement('a');
   a.href = url; a.download = 'ar_class_data.json'; a.click();
   URL.revokeObjectURL(url);
-  toast('Данные экспортированы', 'success');
+  toast('📦 Данные экспортированы', 'success');
 }
 
 function importData(input) {
   if (!input.files[0]) return;
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     try {
       const data = JSON.parse(e.target.result);
       if (!Array.isArray(data)) throw new Error('Неверный формат');
       if (confirm(`Импортировать ${data.length} учеников? Текущие данные будут объединены.`)) {
-        // Объединяем по id
         const existingIds = new Set(state.students.map(s => s.id));
         data.forEach(s => { if (!existingIds.has(s.id)) state.students.push(s); });
-        saveToStorage();
+        await saveToStorage();
         renderStudents();
         updateStats();
-        toast(`Импортировано: ${data.length} учеников`, 'success');
+        toast(`✅ Импортировано: ${data.length} учеников`, 'success');
       }
     } catch(err) {
-      toast('Ошибка импорта: ' + err.message, 'danger');
+      toast('❌ Ошибка импорта: ' + err.message, 'danger');
     }
   };
   reader.readAsText(input.files[0]);
