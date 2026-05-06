@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AR Виньетка — Школьный Класс</title>
+
+  <!-- ===== ВНЕШНИЕ БИБЛИОТЕКИ ===== -->
+
+  <!-- MindAR — image tracking в браузере без приложений -->
+
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+
+  <!-- A-Frame — WebXR/WebGL рендеринг -->
+
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+  <!-- MindAR + A-Frame интеграция -->
+
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <!-- QRCode.js — генерация QR-кодов -->
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <style>
+    /* ======================================================
+       ДИЗАЙН-СИСТЕМА: Тёплая академическая минималистика
+       Шрифты: Playfair Display (заголовки) + DM Sans (тело)
+       Палитра: кремово-белый фон, глубокий синий, золото
+    ====================================================== */
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+    :root {
+      --bg:         #F7F4EE;
+      --bg2:        #EDE8DF;
+      --surface:    #FFFFFF;
+      --ink:        #1A1A2E;
+      --ink2:       #4A4A6A;
+      --ink3:       #8888AA;
+      --accent:     #2C5F8A;
+      --accent2:    #1A3D5C;
+      --gold:       #C8972A;
+      --gold2:      #E8B84B;
+      --danger:     #C0392B;
+      --success:    #27AE60;
+      --radius:     14px;
+      --radius-sm:  8px;
+      --shadow:     0 4px 24px rgba(26,26,46,.10);
+      --shadow-lg:  0 12px 48px rgba(26,26,46,.16);
+      --transition: .22s cubic-bezier(.4,0,.2,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Утилиты ── */
+    .hidden { display: none !important; }
+    .flex { display: flex; }
+    .col  { flex-direction: column; }
+    .center { align-items: center; justify-content: center; }
+    .gap-sm { gap: 8px; }
+    .gap  { gap: 16px; }
+    .gap-lg { gap: 24px; }
+    .w100 { width: 100%; }
+
+    /* ── Скроллбар ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg2); }
+    ::-webkit-scrollbar-thumb { background: var(--ink3); border-radius: 3px; }
+
+    /* =====================================================
+       ШАПКА
+    ===================================================== */
+    header {
+      background: var(--accent2);
+      color: #fff;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 16px rgba(0,0,0,.2);
+    }
+    header .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    header .logo .icon { font-size: 1.4rem; }
+    header nav { display: flex; gap: 8px; }
+    header nav button {
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.2);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      padding: 7px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    header nav button:hover { background: rgba(255,255,255,.22); }
+    header nav button.active { background: var(--gold); border-color: var(--gold); color: var(--ink2); }
+
+    /* =====================================================
+       ЭКРАНЫ / СТРАНИЦЫ
+    ===================================================== */
+    .screen { display: none; min-height: calc(100vh - 60px); }
+    .screen.active { display: block; }
+
+    /* =====================================================
+       ЭКРАН: ГЛАВНАЯ
+    ===================================================== */
+    #screen-home {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+      background: var(--bg);
+    }
+    #screen-home.active { display: flex; }
+
+    .home-badge {
+      background: var(--gold2);
+      color: var(--accent2);
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 4px 14px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+    .home-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 6vw, 3.4rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--ink);
+      margin-bottom: 16px;
+      max-width: 640px;
+    }
+    .home-sub {
+      font-size: 1.05rem;
+      color: var(--ink2);
+      max-width: 480px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+    }
+    .home-actions { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      border: none;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(44,95,138,.35);
+    }
+    .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(44,95,138,.45); }
+    .btn-gold {
+      background: var(--gold);
+      color: #fff;
+      box-shadow: 0 4px 16px rgba(200,151,42,.35);
+    }
+    .btn-gold:hover { background: var(--gold2); transform: translateY(-1px); }
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--accent);
+      color: var(--accent);
+    }
+    .btn-outline:hover { background: var(--accent); color: #fff; }
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    .btn-danger:hover { opacity: .85; }
+    .btn-sm { padding: 7px 16px; font-size: .82rem; border-radius: var(--radius-sm); }
+    .btn-icon { width: 36px; height: 36px; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; }
+
+    .home-stats {
+      margin-top: 56px;
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .stat-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px 28px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      min-width: 120px;
+    }
+    .stat-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-label { font-size: .8rem; color: var(--ink3); margin-top: 2px; }
+
+    /* =====================================================
+       ЭКРАН: АДМИН
+    ===================================================== */
+    #screen-admin { padding: 0; }
+    #screen-admin.active { display: block; }
+
+    /* Логин-оверлей */
+    #admin-login-overlay {
+      position: fixed; inset: 0;
+      background: rgba(26,26,46,.7);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 360px;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+    }
+    .login-card h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+    .login-card p { color: var(--ink3); font-size: .88rem; margin-bottom: 24px; }
+    .input-group { position: relative; margin-bottom: 16px; }
+    .input-group input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid var(--bg2);
+      border-radius: var(--radius-sm);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .95rem;
+      color: var(--ink);
+      background: var(--bg);
+      outline: none;
+      transition: var(--transition);
+    }
+    .input-group input:focus { border-color: var(--accent); background: #fff; }
+    .login-error { color: var(--danger); font-size: .82rem; margin-bottom: 12px; }
+
+    /* Основная область админки */
+    .admin-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      min-height: calc(100vh - 60px);
+    }
+    @media (max-width: 900px) {
+      .admin-layout { grid-template-columns: 1fr; }
+    }
+
+    .admin-sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--bg2);
+      padding: 28px 24px;
+      overflow-y: auto;
+    }
+    .admin-sidebar h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.15rem;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--ink2);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .form-control {
+      width: 100%;
+      padding: 10px 14px;
+      border: 2px solid var(--bg2);
+      border-radius: var(--radius-sm);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .92rem;
+      color: var(--ink);
+      background: var(--bg);
+      outline: none;
+      transition: var(--transition);
+      margin-bottom: 14px;
+    }
+    .form-control:focus { border-color: var(--accent); background: #fff; }
+    select.form-control { cursor: pointer; }
+
+    .file-upload {
+      border: 2px dashed var(--bg2);
+      border-radius: var(--radius-sm);
+      padding: 18px;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-bottom: 14px;
+      position: relative;
+    }
+    .file-upload:hover { border-color: var(--accent); background: rgba(44,95,138,.04); }
+    .file-upload input[type=file] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .file-upload .upload-icon { font-size: 1.6rem; margin-bottom: 6px; }
+    .file-upload .upload-text { font-size: .82rem; color: var(--ink3); }
+    .file-upload .upload-text strong { color: var(--accent); }
+    .file-upload .preview-name { font-size: .8rem; color: var(--success); margin-top: 4px; font-weight: 600; }
+
+    .photo-preview {
+      width: 80px; height: 80px;
+      border-radius: var(--radius-sm);
+      object-fit: cover;
+      border: 2px solid var(--bg2);
+      display: none;
+      margin: 0 auto 14px;
+    }
+    .photo-preview.show { display: block; }
+
+    .divider {
+      height: 1px; background: var(--bg2);
+      margin: 20px 0;
+    }
+
+    /* Данные об экспорте */
+    .export-area { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Правая панель: список учеников ── */
+    .admin-main {
+      padding: 28px 32px;
+      overflow-y: auto;
+    }
+    .admin-main-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .admin-main-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.4rem;
+    }
+
+    .students-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .student-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: var(--transition);
+      border: 1px solid var(--bg2);
+    }
+    .student-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+    .student-card-photo {
+      width: 100%; height: 160px;
+      object-fit: cover;
+      background: var(--bg2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3rem;
+      color: var(--ink3);
+    }
+    .student-card-photo img { width: 100%; height: 160px; object-fit: cover; display: block; }
+
+    .student-card-body { padding: 14px; }
+    .student-card-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .student-card-class {
+      font-size: .78rem;
+      color: var(--ink3);
+      margin-bottom: 10px;
+    }
+    .student-card-badges { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .badge {
+      font-size: .7rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+    .badge-video { background: rgba(44,95,138,.12); color: var(--accent); }
+    .badge-photo { background: rgba(39,174,96,.12); color: var(--success); }
+    .badge-warn  { background: rgba(200,151,42,.12); color: var(--gold); }
+
+    .student-card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .empty-state {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--ink3);
+    }
+    .empty-state .empty-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: .95rem; }
+
+    /* QR модальное окно */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(26,26,46,.6);
+      backdrop-filter: blur(6px);
+      z-index: 300;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal {
+      background: var(--surface);
+      border-radius: 20px;
+      padding: 32px;
+      width: 100%;
+      max-width: 440px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+    }
+    .modal h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.3rem;
+      margin-bottom: 6px;
+    }
+    .modal p { color: var(--ink3); font-size: .85rem; margin-bottom: 20px; }
+    .modal-close {
+      position: absolute; top: 16px; right: 16px;
+      background: var(--bg2); border: none; border-radius: 50%;
+      width: 32px; height: 32px; font-size: 1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: var(--transition);
+    }
+    .modal-close:hover { background: var(--bg); }
+    #qr-container, #qr-single-container { display: flex; justify-content: center; margin: 16px 0; }
+    #qr-container canvas, #qr-single-container canvas { border-radius: 8px; }
+    .qr-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .qr-tab {
+      flex: 1; padding: 8px; border: 2px solid var(--bg2); background: none;
+      border-radius: var(--radius-sm); cursor: pointer; font-family: 'DM Sans', sans-serif;
+      font-size: .82rem; font-weight: 600; transition: var(--transition);
+    }
+    .qr-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(44,95,138,.07); }
+
+    /* =====================================================
+       ЭКРАН: AR РЕЖИМ
+    ===================================================== */
+    #screen-ar { position: relative; }
+    #screen-ar.active { display: block; }
+
+    /* Инструкции до запуска */
+    #ar-intro {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      text-align: center;
+      min-height: calc(100vh - 60px);
+      background: var(--bg);
+    }
+    .ar-intro-icon { font-size: 5rem; margin-bottom: 24px; animation: float 3s ease-in-out infinite; }
+    @keyframes float {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .ar-intro-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      margin-bottom: 12px;
+    }
+    .ar-intro-sub { color: var(--ink2); line-height: 1.7; max-width: 420px; margin-bottom: 32px; }
+
+    .ar-tips {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      max-width: 420px;
+      width: 100%;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow);
+      text-align: left;
+    }
+    .ar-tips h4 {
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 12px;
+    }
+    .ar-tip {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: .85rem; color: var(--ink2);
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+    .ar-tip .tip-icon { flex-shrink: 0; font-size: 1rem; }
+
+    /* ── AR сцена (MindAR + A-Frame) ── */
+    #ar-scene-wrapper {
+      position: fixed; inset: 0;
+      z-index: 500;
+      display: none;
+    }
+    #ar-scene-wrapper.active { display: block; }
+
+    /* UI поверх AR сцены */
+    #ar-hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 600;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(26,26,46,.7) 0%, transparent 100%);
+    }
+    #ar-hud .hud-title {
+      color: #fff;
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    #ar-hud .hud-actions { display: flex; gap: 8px; }
+    #ar-hud button {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      padding: 8px 14px;
+      font-size: .82rem;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: var(--transition);
+    }
+    #ar-hud button:hover { background: rgba(255,255,255,.28); }
+
+    /* Статус трекинга */
+    #ar-status {
+      position: fixed;
+      bottom: 80px; left: 50%; transform: translateX(-50%);
+      z-index: 600;
+      background: rgba(26,26,46,.75);
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: .85rem;
+      backdrop-filter: blur(8px);
+      display: flex; align-items: center; gap: 8px;
+      transition: var(--transition);
+      pointer-events: none;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ink3);
+      animation: pulse 1.5s infinite;
+    }
+    .status-dot.found { background: var(--success); }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50% { opacity: .5; transform: scale(.85); }
+    }
+
+    /* Нижняя панель AR */
+    #ar-bottom {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 600;
+      padding: 16px;
+      background: linear-gradient(to top, rgba(26,26,46,.7) 0%, transparent 100%);
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* A-Frame сцена */
+    #mindar-scene {
+      width: 100%; height: 100%;
+      position: absolute; inset: 0;
+    }
+
+    /* =====================================================
+       УВЕДОМЛЕНИЯ
+    ===================================================== */
+    #toast-container {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--ink);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: .85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-lg);
+      animation: slideIn .3s ease;
+      pointer-events: auto;
+      max-width: 300px;
+    }
+    .toast.success { background: var(--success); }
+    .toast.danger  { background: var(--danger); }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(30px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    /* =====================================================
+       АДАПТИВ
+    ===================================================== */
+    @media (max-width: 600px) {
+      header .logo span { display: none; }
+      header nav button { padding: 7px 10px; font-size: .78rem; }
+      .admin-sidebar { border-right: none; border-bottom: 1px solid var(--bg2); }
+      .admin-main { padding: 20px 16px; }
+      .modal { padding: 24px 20px; }
+    }
+
+    /* =====================================================
+       АНИМАЦИИ ПОЯВЛЕНИЯ ВИДЕО (AR оверлей)
+    ===================================================== */
+    /* Используются CSS-классы, применяемые к <a-entity> через JS */
+    /* Определяем через a-frame компоненты ниже */
+
+    /* Спиннер загрузки MindAR */
+    #ar-loading {
+      position: fixed; inset: 0;
+      background: var(--ink);
+      z-index: 700;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(255,255,255,.2);
+      border-top-color: var(--gold2);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #ar-loading p { font-size: .95rem; color: rgba(255,255,255,.7); }
+
+    /* Редактирование ученика */
+    .edit-modal-fields { display: flex; flex-direction: column; gap: 0; }
+
+    /* Инструкция-оверлей при скане */
+    #scan-hint {
+      position: fixed;
+      top: 50%; left: 50%; transform: translate(-50%, -50%);
+      z-index: 600;
+      text-align: center;
+      pointer-events: none;
+      transition: opacity .5s;
+    }
+    #scan-hint .scan-frame {
+      width: 220px; height: 220px;
+      border: 3px solid rgba(255,255,255,.7);
+      border-radius: 20px;
+      position: relative;
+      margin: 0 auto 14px;
+      box-shadow: 0 0 0 2000px rgba(0,0,0,.35);
+    }
+    #scan-hint .scan-frame::before,
+    #scan-hint .scan-frame::after {
+      content: '';
+      position: absolute;
+      width: 30px; height: 30px;
+      border-color: var(--gold2);
+      border-style: solid;
+      border-width: 0;
+    }
+    #scan-hint .scan-frame::before { top: -3px; left: -3px; border-top-width: 4px; border-left-width: 4px; border-radius: 4px 0 0 0; }
+    #scan-hint .scan-frame::after  { bottom: -3px; right: -3px; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 4px 0; }
+    #scan-hint p { color: #fff; font-size: .9rem; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+  </style>
+
+</head>
+<body>
+
+<!-- =====================================================
+     ШАПКА
+===================================================== -->
+
+<header>
+  <div class="logo">
+    <span class="icon">🎓</span>
+    <span>AR Виньетка</span>
+  </div>
+  <nav>
+    <button id="nav-home" class="active" onclick="showScreen('home')">Главная</button>
+    <button id="nav-ar"   onclick="showScreen('ar')">AR режим</button>
+    <button id="nav-admin" onclick="showScreen('admin')">Админ</button>
+  </nav>
+</header>
+
+<!-- =====================================================
+     ЭКРАН: ГЛАВНАЯ
+===================================================== -->
+
+<div id="screen-home" class="screen active">
+  <div class="home-badge">Школьный AR проект</div>
+  <h1 class="home-title">Оживите фотографии<br>с помощью AR</h1>
+  <p class="home-sub">
+    Наведите камеру на обычное школьное фото — и оно превратится в живое видео.
+    Никаких приложений. Только браузер.
+  </p>
+  <div class="home-actions">
+    <button class="btn btn-primary" onclick="showScreen('ar')">
+      📷 Запустить AR
+    </button>
+    <button class="btn btn-gold" onclick="showScreen('admin')">
+      ⚙️ Управление
+    </button>
+  </div>
+  <div class="home-stats">
+    <div class="stat-card">
+      <div class="stat-num" id="stat-students">0</div>
+      <div class="stat-label">Учеников</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-videos">0</div>
+      <div class="stat-label">Видео</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" id="stat-classes">0</div>
+      <div class="stat-label">Классов</div>
+    </div>
+  </div>
+</div>
+
+<!-- =====================================================
+     ЭКРАН: АДМИН
+===================================================== -->
+
+<div id="screen-admin" class="screen">
+
+  <!-- Оверлей авторизации -->
+
+  <div id="admin-login-overlay">
+    <div class="login-card">
+      <div style="font-size:2.5rem;margin-bottom:12px">🔐</div>
+      <h2>Вход в панель</h2>
+      <p>Введите пароль администратора</p>
+      <div id="login-error" class="login-error hidden">Неверный пароль</div>
+      <div class="input-group">
+        <input type="password" id="admin-password-input" placeholder="Пароль" onkeydown="if(event.key==='Enter')checkAdminLogin()" />
+      </div>
+      <button class="btn btn-primary w100" onclick="checkAdminLogin()">Войти</button>
+      <p style="margin-top:12px;font-size:.75rem;color:var(--ink3)">Пароль по умолчанию: <strong>1234</strong></p>
+    </div>
+  </div>
+
+  <!-- Основной интерфейс -->
+
+  <div class="admin-layout">
+
+```
+<!-- Боковая панель: форма добавления -->
+<aside class="admin-sidebar">
+  <h3>➕ <span id="form-mode-title">Добавить ученика</span></h3>
+
+  <label class="form-label">Имя ученика *</label>
+  <input type="text" class="form-control" id="f-name" placeholder="Например: Алия Сейткали" />
+
+  <label class="form-label">Класс *</label>
+  <input type="text" class="form-control" id="f-class" placeholder="Например: 5А" />
+
+  <label class="form-label">Анимация появления</label>
+  <select class="form-control" id="f-anim">
+    <option value="fade">Плавное появление</option>
+    <option value="scale">Масштабирование</option>
+    <option value="slide">Слайд снизу</option>
+    <option value="glow">Свечение</option>
+    <option value="frame">С рамкой</option>
+  </select>
+
+  <label class="form-label">Фото ученика *</label>
+  <img id="photo-preview" class="photo-preview" alt="preview" />
+  <div class="file-upload" id="photo-upload-area">
+    <input type="file" id="f-photo" accept="image/*" onchange="handlePhotoUpload(this)" />
+    <div class="upload-icon">🖼️</div>
+    <div class="upload-text">Нажмите или перетащите фото<br><strong>JPG, PNG, WEBP</strong></div>
+    <div class="preview-name" id="photo-name"></div>
+  </div>
+
+  <label class="form-label">Видео (5–15 сек) *</label>
+  <div class="file-upload" id="video-upload-area">
+    <input type="file" id="f-video" accept="video/*" onchange="handleVideoUpload(this)" />
+    <div class="upload-icon">🎬</div>
+    <div class="upload-text">Нажмите или перетащите видео<br><strong>MP4, WebM, MOV</strong></div>
+    <div class="preview-name" id="video-name"></div>
+  </div>
+
+  <button class="btn btn-primary w100" id="save-btn" onclick="saveStudent()">
+    💾 Сохранить ученика
+  </button>
+  <button class="btn btn-outline w100" id="cancel-edit-btn" style="margin-top:8px;display:none" onclick="cancelEdit()">
+    ✕ Отмена редактирования
+  </button>
+
+  <div class="divider"></div>
+
+  <!-- QR-коды -->
+  <h3>📱 QR-коды</h3>
+  <p style="font-size:.82rem;color:var(--ink3);margin-bottom:12px">
+    Общий QR-код ведёт на AR-страницу класса. Каждый ученик может получить индивидуальный код.
+  </p>
+  <button class="btn btn-gold w100" onclick="showQRModal()">🔲 Сгенерировать QR-код</button>
+
+  <div class="divider"></div>
+
+  <!-- Экспорт / Импорт -->
+  <h3>📦 Экспорт / Импорт</h3>
+  <div class="export-area">
+    <button class="btn btn-outline w100" onclick="exportData()">⬇️ Экспорт JSON</button>
+    <label class="btn btn-outline w100" style="cursor:pointer;text-align:center">
+      ⬆️ Импорт JSON
+      <input type="file" accept=".json" style="display:none" onchange="importData(this)" />
+    </label>
+  </div>
+
+  <div class="divider"></div>
+  <button class="btn btn-danger w100 btn-sm" onclick="confirmLogout()">🚪 Выйти</button>
+</aside>
+
+<!-- Основная панель: список учеников -->
+<main class="admin-main">
+  <div class="admin-main-header">
+    <h2>👩‍🎓 Ученики</h2>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" class="form-control" style="margin:0;width:200px" id="search-input"
+        placeholder="🔍 Поиск..." oninput="renderStudents()" />
+      <input type="text" class="form-control" style="margin:0;width:120px" id="class-filter"
+        placeholder="Класс..." oninput="renderStudents()" />
+    </div>
+  </div>
+
+  <!-- AR инструкция для печати -->
+  <div style="background:rgba(200,151,42,.1);border:1px solid var(--gold);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:24px;font-size:.84rem;color:var(--ink2);line-height:1.6">
+    <strong style="color:var(--gold)">📸 Советы по печати фото для AR:</strong><br>
+    Печатайте фото минимум <strong>10×15 см</strong>, используйте хорошее освещение при сканировании.
+    Фото должно быть <strong>контрастным</strong> с чёткими деталями лица.
+    Матовая бумага лучше глянцевой — меньше бликов.
+    Убедитесь, что фото не смятое и хорошо освещено.
+  </div>
+
+  <div class="students-grid" id="students-grid">
+    <!-- заполняется JS -->
+  </div>
+</main>
+```
+
+  </div>
+</div>
+
+<!-- =====================================================
+     ЭКРАН: AR РЕЖИМ
+===================================================== -->
+
+<div id="screen-ar" class="screen">
+
+  <!-- Вводная страница до запуска камеры -->
+
+  <div id="ar-intro">
+    <div class="ar-intro-icon">📷</div>
+    <h2 class="ar-intro-title">AR Виньетка</h2>
+    <p class="ar-intro-sub">
+      Наведите камеру вашего телефона на распечатанное фото ученика — и оно оживёт! Никаких приложений не нужно.
+    </p>
+
+```
+<div class="ar-tips">
+  <h4>✨ Советы для лучшего результата</h4>
+  <div class="ar-tip"><span class="tip-icon">💡</span><span>Хорошее освещение — самое важное условие</span></div>
+  <div class="ar-tip"><span class="tip-icon">📏</span><span>Держите телефон на расстоянии 20–40 см от фото</span></div>
+  <div class="ar-tip"><span class="tip-icon">🖨️</span><span>Фото должно быть напечатано на бумаге (не экран)</span></div>
+  <div class="ar-tip"><span class="tip-icon">🚫</span><span>Избегайте бликов и теней на фотографии</span></div>
+  <div class="ar-tip"><span class="tip-icon">🔄</span><span>Если не распознаётся — слегка измените угол</span></div>
+</div>
+
+<button class="btn btn-primary" id="start-ar-btn" style="font-size:1.05rem;padding:16px 40px" onclick="startAR()">
+  📷 Запустить камеру
+</button>
+
+<div id="no-students-warn" class="hidden" style="margin-top:16px;color:var(--danger);font-size:.85rem">
+  ⚠️ Сначала добавьте учеников в <button class="btn btn-sm btn-outline" onclick="showScreen('admin')" style="margin-left:4px">Админ панели</button>
+</div>
+```
+
+  </div>
+
+  <!-- AR сцена — отображается поверх всего при запуске -->
+
+  <div id="ar-scene-wrapper">
+    <!-- Лоадер -->
+    <div id="ar-loading">
+      <div class="spinner"></div>
+      <p>Загрузка AR движка…</p>
+    </div>
+
+```
+<!-- HUD поверх AR -->
+<div id="ar-hud">
+  <div class="hud-title">🎓 AR Виньетка</div>
+  <div class="hud-actions">
+    <button onclick="takeScreenshot()">📸 Скрин</button>
+    <button onclick="stopAR()">✕ Выйти</button>
+  </div>
+</div>
+
+<!-- Подсказка сканирования -->
+<div id="scan-hint">
+  <div class="scan-frame"></div>
+  <p>Наведите на фото ученика</p>
+</div>
+
+<!-- Статус трекинга -->
+<div id="ar-status">
+  <div class="status-dot" id="status-dot"></div>
+  <span id="status-text">Ищу фотографию…</span>
+</div>
+
+<!-- A-Frame сцена будет вставлена сюда динамически -->
+<div id="aframe-container"></div>
+
+<!-- Нижняя панель -->
+<div id="ar-bottom">
+  <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="stopAR()">
+    ⬅️ Назад
+  </button>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- =====================================================
+     МОДАЛЬНОЕ ОКНО: QR-коды
+===================================================== -->
+
+<div id="qr-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeQRModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeQRModal()">✕</button>
+    <h3>📱 QR-коды класса</h3>
+    <p>Распечатайте и разместите у входа или раздайте родителям</p>
+
+```
+<div class="qr-tabs">
+  <button class="qr-tab active" onclick="switchQRTab('general', this)">Общий QR</button>
+  <button class="qr-tab" onclick="switchQRTab('individual', this)">По ученикам</button>
+</div>
+
+<!-- Общий QR -->
+<div id="qr-tab-general">
+  <div id="qr-container"></div>
+  <p style="text-align:center;font-size:.8rem;color:var(--ink3);margin-bottom:12px">
+    Ведёт на AR режим для всех учеников
+  </p>
+  <button class="btn btn-primary w100" onclick="downloadQR('qr-container', 'qr-class')">
+    ⬇️ Скачать QR-код
+  </button>
+</div>
+
+<!-- Индивидуальные QR -->
+<div id="qr-tab-individual" class="hidden">
+  <select class="form-control" id="qr-student-select" onchange="generateStudentQR()">
+    <option value="">— Выберите ученика —</option>
+  </select>
+  <div id="qr-single-container" style="min-height:170px;align-items:center"></div>
+  <button class="btn btn-primary w100" id="qr-single-download" onclick="downloadQR('qr-single-container', 'qr-student')" style="margin-top:8px">
+    ⬇️ Скачать QR-код
+  </button>
+</div>
+```
+
+  </div>
+</div>
+
+<!-- =====================================================
+     МОДАЛЬНОЕ ОКНО: Редактирование ученика
+===================================================== -->
+
+<div id="edit-modal" class="modal-overlay hidden" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditModal()">✕</button>
+    <h3>✏️ Редактировать ученика</h3>
+    <div class="edit-modal-fields">
+      <label class="form-label">Имя</label>
+      <input type="text" class="form-control" id="edit-name" />
+      <label class="form-label">Класс</label>
+      <input type="text" class="form-control" id="edit-class" />
+      <label class="form-label">Анимация</label>
+      <select class="form-control" id="edit-anim">
+        <option value="fade">Плавное появление</option>
+        <option value="scale">Масштабирование</option>
+        <option value="slide">Слайд снизу</option>
+        <option value="glow">Свечение</option>
+        <option value="frame">С рамкой</option>
+      </select>
+      <label class="form-label">Новое фото (необязательно)</label>
+      <div class="file-upload">
+        <input type="file" id="edit-photo" accept="image/*" onchange="handleEditPhoto(this)" />
+        <div class="upload-text"><strong>Выбрать новое фото</strong></div>
+        <div class="preview-name" id="edit-photo-name"></div>
+      </div>
+      <label class="form-label">Новое видео (необязательно)</label>
+      <div class="file-upload">
+        <input type="file" id="edit-video" accept="video/*" onchange="handleEditVideo(this)" />
+        <div class="upload-text"><strong>Выбрать новое видео</strong></div>
+        <div class="preview-name" id="edit-video-name"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" style="flex:1" onclick="saveEdit()">💾 Сохранить</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeEditModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<!-- Тосты -->
+
+<div id="toast-container"></div>
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script>
+/* =====================================================
+   КОНСТАНТЫ И СОСТОЯНИЕ
+===================================================== */
+const ADMIN_PASSWORD = '1234';
+const STORAGE_KEY    = 'ar_school_students';
+
+// Текущее состояние приложения
+let state = {
+  students: [],          // массив объектов Student
+  adminLoggedIn: false,
+  editingId: null,       // id редактируемого ученика
+  arRunning: false,
+  // временные данные формы
+  tmpPhotoBase64: null,
+  tmpVideoBase64: null,
+  editPhotoBase64: null,
+  editVideoBase64: null,
+};
+
+/* =====================================================
+   СТРУКТУРА УЧЕНИКА
+   {
+     id, name, className, anim,
+     photoBase64,  // data URL изображения
+     videoBase64,  // data URL видео
+     createdAt
+   }
+===================================================== */
+
+/* =====================================================
+   ИНИЦИАЛИЗАЦИЯ
+===================================================== */
+document.addEventListener('DOMContentLoaded', () => {
+  loadFromStorage();
+  updateStats();
+  checkStudentsForAR();
+});
+
+/* =====================================================
+   НАВИГАЦИЯ
+===================================================== */
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('header nav button').forEach(b => b.classList.remove('active'));
+
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+
+  if (name === 'admin') renderStudents();
+  if (name === 'ar') checkStudentsForAR();
+  if (name === 'home') updateStats();
+}
+
+/* =====================================================
+   ХРАНИЛИЩЕ
+===================================================== */
+function saveToStorage() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.students));
+}
+
+function loadFromStorage() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) state.students = JSON.parse(data);
+  } catch(e) {
+    state.students = [];
+  }
+}
+
+/* =====================================================
+   АВТОРИЗАЦИЯ
+===================================================== */
+function checkAdminLogin() {
+  const pwd = document.getElementById('admin-password-input').value;
+  const err = document.getElementById('login-error');
+  if (pwd === ADMIN_PASSWORD) {
+    state.adminLoggedIn = true;
+    document.getElementById('admin-login-overlay').style.display = 'none';
+    err.classList.add('hidden');
+    renderStudents();
+    toast('Добро пожаловать, администратор!', 'success');
+  } else {
+    err.classList.remove('hidden');
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-password-input').classList.add('shake');
+    setTimeout(() => document.getElementById('admin-password-input').classList.remove('shake'), 500);
+  }
+}
+
+function confirmLogout() {
+  if (confirm('Выйти из панели администратора?')) {
+    state.adminLoggedIn = false;
+    document.getElementById('admin-password-input').value = '';
+    document.getElementById('admin-login-overlay').style.display = 'flex';
+    showScreen('home');
+  }
+}
+
+/* =====================================================
+   ЗАГРУЗКА ФАЙЛОВ
+===================================================== */
+// Читаем файл в base64
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handlePhotoUpload(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 5 * 1024 * 1024) { toast('Фото слишком большое (макс 5 МБ)', 'danger'); return; }
+  state.tmpPhotoBase64 = await readFileAsBase64(file);
+  document.getElementById('photo-name').textContent = '✓ ' + file.name;
+  const preview = document.getElementById('photo-preview');
+  preview.src = state.tmpPhotoBase64;
+  preview.classList.add('show');
+}
+
+async function handleVideoUpload(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 50 * 1024 * 1024) { toast('Видео слишком большое (макс 50 МБ)', 'danger'); return; }
+  state.tmpVideoBase64 = await readFileAsBase64(file);
+  document.getElementById('video-name').textContent = '✓ ' + file.name;
+}
+
+async function handleEditPhoto(input) {
+  if (!input.files[0]) return;
+  state.editPhotoBase64 = await readFileAsBase64(input.files[0]);
+  document.getElementById('edit-photo-name').textContent = '✓ ' + input.files[0].name;
+}
+
+async function handleEditVideo(input) {
+  if (!input.files[0]) return;
+  state.editVideoBase64 = await readFileAsBase64(input.files[0]);
+  document.getElementById('edit-video-name').textContent = '✓ ' + input.files[0].name;
+}
+
+/* =====================================================
+   CRUD УЧЕНИКОВ
+===================================================== */
+function saveStudent() {
+  const name  = document.getElementById('f-name').value.trim();
+  const cls   = document.getElementById('f-class').value.trim();
+  const anim  = document.getElementById('f-anim').value;
+
+  if (!name)                    { toast('Введите имя ученика', 'danger'); return; }
+  if (!cls)                     { toast('Введите класс', 'danger'); return; }
+  if (!state.tmpPhotoBase64)    { toast('Загрузите фото ученика', 'danger'); return; }
+  if (!state.tmpVideoBase64)    { toast('Загрузите видео', 'danger'); return; }
+
+  const student = {
+    id:          Date.now().toString(),
+    name,
+    className:   cls,
+    anim,
+    photoBase64: state.tmpPhotoBase64,
+    videoBase64: state.tmpVideoBase64,
+    createdAt:   new Date().toISOString(),
+  };
+
+  state.students.push(student);
+  saveToStorage();
+  resetForm();
+  renderStudents();
+  updateStats();
+  toast(`Ученик "${name}" добавлен`, 'success');
+}
+
+function resetForm() {
+  document.getElementById('f-name').value  = '';
+  document.getElementById('f-class').value = '';
+  document.getElementById('f-anim').value  = 'fade';
+  document.getElementById('f-photo').value = '';
+  document.getElementById('f-video').value = '';
+  document.getElementById('photo-name').textContent = '';
+  document.getElementById('video-name').textContent = '';
+  const p = document.getElementById('photo-preview');
+  p.src = ''; p.classList.remove('show');
+  state.tmpPhotoBase64 = null;
+  state.tmpVideoBase64 = null;
+}
+
+function deleteStudent(id) {
+  const s = state.students.find(x => x.id === id);
+  if (!s) return;
+  if (!confirm(`Удалить ученика "${s.name}"?`)) return;
+  state.students = state.students.filter(x => x.id !== id);
+  saveToStorage();
+  renderStudents();
+  updateStats();
+  toast(`Ученик удалён`, 'danger');
+}
+
+// --- Редактирование ---
+function openEditModal(id) {
+  const s = state.students.find(x => x.id === id);
+  if (!s) return;
+  state.editingId       = id;
+  state.editPhotoBase64 = null;
+  state.editVideoBase64 = null;
+  document.getElementById('edit-name').value  = s.name;
+  document.getElementById('edit-class').value = s.className;
+  document.getElementById('edit-anim').value  = s.anim || 'fade';
+  document.getElementById('edit-photo-name').textContent = '';
+  document.getElementById('edit-video-name').textContent = '';
+  document.getElementById('edit-photo').value = '';
+  document.getElementById('edit-video').value = '';
+  document.getElementById('edit-modal').classList.remove('hidden');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.add('hidden');
+  state.editingId = null;
+}
+
+function saveEdit() {
+  const id  = state.editingId;
+  const idx = state.students.findIndex(x => x.id === id);
+  if (idx === -1) return;
+
+  state.students[idx].name      = document.getElementById('edit-name').value.trim()  || state.students[idx].name;
+  state.students[idx].className = document.getElementById('edit-class').value.trim() || state.students[idx].className;
+  state.students[idx].anim      = document.getElementById('edit-anim').value;
+  if (state.editPhotoBase64) state.students[idx].photoBase64 = state.editPhotoBase64;
+  if (state.editVideoBase64) state.students[idx].videoBase64 = state.editVideoBase64;
+
+  saveToStorage();
+  closeEditModal();
+  renderStudents();
+  toast('Данные обновлены', 'success');
+}
+
+function cancelEdit() { resetForm(); }
+
+/* =====================================================
+   ОТРИСОВКА СПИСКА УЧЕНИКОВ
+===================================================== */
+function renderStudents() {
+  const grid    = document.getElementById('students-grid');
+  const search  = (document.getElementById('search-input')?.value || '').toLowerCase();
+  const clsF    = (document.getElementById('class-filter')?.value || '').toLowerCase();
+
+  let list = state.students.filter(s => {
+    const matchName = s.name.toLowerCase().includes(search);
+    const matchCls  = clsF ? s.className.toLowerCase().includes(clsF) : true;
+    return matchName && matchCls;
+  });
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">👩‍🎓</div>
+      <p>Ученики ещё не добавлены.<br>Заполните форму слева.</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = list.map(s => `
+    <div class="student-card">
+      <div class="student-card-photo">
+        ${s.photoBase64
+          ? `<img src="${s.photoBase64}" alt="${s.name}" loading="lazy" />`
+          : '👤'}
+      </div>
+      <div class="student-card-body">
+        <div class="student-card-name">${s.name}</div>
+        <div class="student-card-class">Класс: ${s.className}</div>
+        <div class="student-card-badges">
+          ${s.photoBase64 ? '<span class="badge badge-photo">📸 Фото</span>' : '<span class="badge badge-warn">⚠️ Нет фото</span>'}
+          ${s.videoBase64 ? '<span class="badge badge-video">🎬 Видео</span>' : '<span class="badge badge-warn">⚠️ Нет видео</span>'}
+        </div>
+        <div class="student-card-actions">
+          <button class="btn btn-sm btn-outline" onclick="openEditModal('${s.id}')">✏️</button>
+          <button class="btn btn-sm btn-danger"  onclick="deleteStudent('${s.id}')">🗑️</button>
+          <button class="btn btn-sm btn-primary" onclick="showStudentQR('${s.id}')">📱 QR</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* =====================================================
+   СТАТИСТИКА
+===================================================== */
+function updateStats() {
+  const students = state.students;
+  document.getElementById('stat-students').textContent = students.length;
+  document.getElementById('stat-videos').textContent   = students.filter(s => s.videoBase64).length;
+  const classes = [...new Set(students.map(s => s.className))];
+  document.getElementById('stat-classes').textContent  = classes.length;
+}
+
+/* =====================================================
+   QR-КОДЫ
+===================================================== */
+function showQRModal() {
+  document.getElementById('qr-modal').classList.remove('hidden');
+  generateGeneralQR();
+  populateStudentSelect();
+}
+
+function closeQRModal() {
+  document.getElementById('qr-modal').classList.add('hidden');
+}
+
+function getARUrl(studentId) {
+  const base = window.location.href.split('#')[0];
+  return studentId ? `${base}#ar-student-${studentId}` : `${base}#ar-mode`;
+}
+
+function generateGeneralQR() {
+  const container = document.getElementById('qr-container');
+  container.innerHTML = '';
+  new QRCode(container, {
+    text: getARUrl(null),
+    width: 200, height: 200,
+    colorDark: '#1A1A2E',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+}
+
+function populateStudentSelect() {
+  const sel = document.getElementById('qr-student-select');
+  sel.innerHTML = '<option value="">— Выберите ученика —</option>';
+  state.students.forEach(s => {
+    sel.innerHTML += `<option value="${s.id}">${s.name} (${s.className})</option>`;
+  });
+}
+
+function generateStudentQR() {
+  const id  = document.getElementById('qr-student-select').value;
+  const cnt = document.getElementById('qr-single-container');
+  cnt.innerHTML = '';
+  if (!id) return;
+  new QRCode(cnt, {
+    text: getARUrl(id),
+    width: 200, height: 200,
+    colorDark: '#1A3D5C',
+    colorLight: '#FFFFFF',
+    correctLevel: QRCode.CorrectLevel.H,
+  });
+}
+
+function showStudentQR(id) {
+  showQRModal();
+  setTimeout(() => {
+    switchQRTab('individual', document.querySelectorAll('.qr-tab')[1]);
+    document.getElementById('qr-student-select').value = id;
+    generateStudentQR();
+  }, 100);
+}
+
+function switchQRTab(tab, btn) {
+  document.querySelectorAll('.qr-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('qr-tab-general').classList.toggle('hidden', tab !== 'general');
+  document.getElementById('qr-tab-individual').classList.toggle('hidden', tab !== 'individual');
+}
+
+function downloadQR(containerId, filename) {
+  const canvas = document.querySelector(`#${containerId} canvas`);
+  if (!canvas) { toast('Сначала выберите ученика', 'danger'); return; }
+  const link = document.createElement('a');
+  link.download = filename + '.png';
+  link.href = canvas.toDataURL();
+  link.click();
+  toast('QR-код скачан', 'success');
+}
+
+/* =====================================================
+   ЭКСПОРТ / ИМПОРТ
+===================================================== */
+function exportData() {
+  if (state.students.length === 0) { toast('Нечего экспортировать', 'danger'); return; }
+  const json = JSON.stringify(state.students, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'ar_class_data.json'; a.click();
+  URL.revokeObjectURL(url);
+  toast('Данные экспортированы', 'success');
+}
+
+function importData(input) {
+  if (!input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Неверный формат');
+      if (confirm(`Импортировать ${data.length} учеников? Текущие данные будут объединены.`)) {
+        // Объединяем по id
+        const existingIds = new Set(state.students.map(s => s.id));
+        data.forEach(s => { if (!existingIds.has(s.id)) state.students.push(s); });
+        saveToStorage();
+        renderStudents();
+        updateStats();
+        toast(`Импортировано: ${data.length} учеников`, 'success');
+      }
+    } catch(err) {
+      toast('Ошибка импорта: ' + err.message, 'danger');
+    }
+  };
+  reader.readAsText(input.files[0]);
+  input.value = '';
+}
+
+/* =====================================================
+   AR РЕЖИМ — MindAR + A-Frame
+===================================================== */
+function checkStudentsForAR() {
+  const warn = document.getElementById('no-students-warn');
+  if (warn) warn.classList.toggle('hidden', state.students.length > 0);
+}
+
+// Глобальные ссылки на AR объекты
+let arScene    = null;
+let arSystem   = null;
+let videoEls   = [];   // массив HTML video элементов
+
+function startAR() {
+  if (state.students.length === 0) {
+    toast('Добавьте хотя бы одного ученика', 'danger');
+    return;
+  }
+
+  /* =====================================================
+     MindAR требует .mind файл — файл с дескрипторами
+     изображений. В браузерном режиме мы используем
+     MindAR Image Tracking с динамически скомпилированными
+     дескрипторами через MindAR.Compiler.
+  ===================================================== */
+
+  const wrapper = document.getElementById('ar-scene-wrapper');
+  wrapper.classList.add('active');
+  document.getElementById('ar-loading').style.display = 'flex';
+  state.arRunning = true;
+
+  // Компилируем дескрипторы для всех фотографий
+  compileMindTargets().then(mindFileURL => {
+    buildAFrameScene(mindFileURL);
+  }).catch(err => {
+    console.error('MindAR compile error:', err);
+    toast('Ошибка компиляции AR: ' + err.message, 'danger');
+    stopAR();
+  });
+}
+
+async function compileMindTargets() {
+  const { Compiler } = window.MINDAR.IMAGE;
+  const compiler = new Compiler();
+
+  // Загружаем каждое фото как HTMLImageElement
+  const images = await Promise.all(state.students.map(s => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = s.photoBase64;
+    });
+  }));
+
+  await compiler.compileImageTargets(images, progress => {
+    const p = document.querySelector('#ar-loading p');
+    if (p) p.textContent = `Обработка изображений: ${Math.round(progress * 100)}%`;
+  });
+
+  const exportedBuffer = await compiler.exportData();
+  const blob = new Blob([exportedBuffer]);
+  return URL.createObjectURL(blob);
+}
+
+function buildAFrameScene(mindFileURL) {
+  // Удаляем старую сцену если есть
+  const container = document.getElementById('aframe-container');
+  container.innerHTML = '';
+  videoEls = [];
+
+  // Создаём HTML video элементы для каждого ученика
+  state.students.forEach((s, i) => {
+    const vid = document.createElement('video');
+    vid.id         = `ar-video-${i}`;
+    vid.src        = s.videoBase64;
+    vid.loop       = true;
+    vid.muted      = false;          // звук включён
+    vid.playsInline = true;
+    vid.setAttribute('webkit-playsinline', '');
+    vid.style.cssText = 'position:fixed;bottom:-9999px;width:1px;height:1px;opacity:0';
+    document.body.appendChild(vid);
+    videoEls.push(vid);
+  });
+
+  // Строим A-Frame разметку
+  const targets = state.students.map((s, i) => {
+    const anim = s.anim || 'fade';
+    const animAttr = getAnimationAttr(anim);
+    return `
+      <a-entity mindar-image-target="targetIndex: ${i}">
+        <a-video
+          id="av-${i}"
+          src="#ar-video-${i}"
+          width="1" height="0.5625"
+          position="0 0 0"
+          ${animAttr}
+        ></a-video>
+        ${anim === 'frame' ? `
+        <a-plane
+          width="1.06" height="0.63"
+          position="0 0 -0.001"
+          color="#C8972A" opacity="0.85"
+        ></a-plane>` : ''}
+      </a-entity>
+    `;
+  }).join('\n');
+
+  // Регистрируем assets
+  const assets = state.students.map((s, i) =>
+    `<video id="ar-video-${i}" src="${s.videoBase64}" loop muted playsinline webkit-playsinline></video>`
+  ).join('\n');
+
+  const sceneHTML = `
+    <a-scene
+      id="mindar-scene"
+      mindar-image="imageTargetSrc: ${mindFileURL}; autoStart: true; uiLoading: no; uiError: no; uiScanning: no; maxTrack: ${state.students.length}"
+      color-space="sRGB"
+      renderer="colorManagement: true; physicallyCorrectLights: true"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false"
+    >
+      <a-assets>
+        ${assets}
+      </a-assets>
+      <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+      ${targets}
+    </a-scene>
+  `;
+
+  container.innerHTML = sceneHTML;
+
+  // Ждём загрузки сцены
+  const scene = container.querySelector('a-scene');
+  scene.addEventListener('loaded', () => {
+    setupAREventListeners(scene);
+    document.getElementById('ar-loading').style.display = 'none';
+    arScene = scene;
+  });
+}
+
+function getAnimationAttr(anim) {
+  switch(anim) {
+    case 'fade':
+      return `animation__appear="property: material.opacity; from: 0; to: 1; dur: 600; easing: easeInQuad; startEvents: targetFound" animation__disappear="property: material.opacity; from: 1; to: 0; dur: 300; easing: easeOutQuad; startEvents: targetLost" material="opacity: 0; transparent: true"`;
+    case 'scale':
+      return `animation__appear="property: scale; from: 0 0 0; to: 1 1 1; dur: 500; easing: easeOutElastic; startEvents: targetFound" animation__disappear="property: scale; from: 1 1 1; to: 0 0 0; dur: 300; easing: easeInQuad; startEvents: targetLost" scale="0 0 0"`;
+    case 'slide':
+      return `animation__appear="property: position; from: 0 -1 0; to: 0 0 0; dur: 500; easing: easeOutCubic; startEvents: targetFound" animation__disappear="property: position; from: 0 0 0; to: 0 -1 0; dur: 300; easing: easeInCubic; startEvents: targetLost"`;
+    case 'glow':
+      return `material="color: #FFFFFF; emissive: #4488FF; emissiveIntensity: 0.5; transparent: true; opacity: 0" animation__appear="property: material.opacity; from: 0; to: 1; dur: 800; easing: easeInOutSine; startEvents: targetFound" animation__glow="property: material.emissiveIntensity; from: 0.5; to: 0; dur: 1500; easing: easeOutQuad; startEvents: targetFound" animation__disappear="property: material.opacity; from: 1; to: 0; dur: 300; startEvents: targetLost"`;
+    case 'frame':
+    default:
+      return `animation__appear="property: material.opacity; from: 0; to: 1; dur: 600; easing: easeInQuad; startEvents: targetFound" animation__disappear="property: material.opacity; from: 1; to: 0; dur: 300; startEvents: targetLost" material="opacity: 0; transparent: true"`;
+  }
+}
+
+function setupAREventListeners(scene) {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const hint = document.getElementById('scan-hint');
+
+  state.students.forEach((s, i) => {
+    const entity = scene.querySelectorAll('[mindar-image-target]')[i];
+    if (!entity) return;
+
+    entity.addEventListener('targetFound', () => {
+      dot.classList.add('found');
+      text.textContent = `🎬 Показываю: ${s.name}`;
+      hint.style.opacity = '0';
+
+      // Воспроизводим видео
+      const vid = document.getElementById(`ar-video-${i}`);
+      if (vid) vid.play().catch(() => {});
+
+      entity.dispatchEvent(new Event('targetFound'));
+    });
+
+    entity.addEventListener('targetLost', () => {
+      dot.classList.remove('found');
+      text.textContent = 'Ищу фотографию…';
+      hint.style.opacity = '1';
+
+      const vid = document.getElementById(`ar-video-${i}`);
+      if (vid) { vid.pause(); vid.currentTime = 0; }
+
+      entity.dispatchEvent(new Event('targetLost'));
+    });
+  });
+}
+
+function stopAR() {
+  state.arRunning = false;
+
+  // Останавливаем видео
+  videoEls.forEach(v => { try { v.pause(); v.src = ''; v.remove(); } catch(e) {} });
+  videoEls = [];
+
+  // Останавливаем AR систему
+  const scene = document.getElementById('mindar-scene');
+  if (scene) {
+    try {
+      const sys = scene.systems && scene.systems['mindar-image-system'];
+      if (sys) sys.stop();
+    } catch(e) {}
+  }
+
+  document.getElementById('aframe-container').innerHTML = '';
+  document.getElementById('ar-scene-wrapper').classList.remove('active');
+
+  // Останавливаем камеру
+  navigator.mediaDevices?.getUserMedia({ video: true }).then(stream => {
+    stream.getTracks().forEach(t => t.stop());
+  }).catch(() => {});
+
+  // Принудительно останавливаем все медиа треки на странице
+  document.querySelectorAll('video').forEach(v => {
+    if (v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+  });
+}
+
+/* =====================================================
+   СКРИНШОТ AR СЦЕНЫ
+===================================================== */
+function takeScreenshot() {
+  try {
+    const canvas = document.querySelector('#mindar-scene canvas');
+    if (!canvas) { toast('Сцена не активна', 'danger'); return; }
+    const link = document.createElement('a');
+    link.download = `ar-screenshot-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast('Скриншот сохранён 📸', 'success');
+  } catch(e) {
+    toast('Ошибка скриншота: ' + e.message, 'danger');
+  }
+}
+
+/* =====================================================
+   УВЕДОМЛЕНИЯ (TOAST)
+===================================================== */
+function toast(msg, type = 'info') {
+  const cnt  = document.getElementById('toast-container');
+  const el   = document.createElement('div');
+  el.className = `toast ${type}`;
+  const icons = { success: '✅', danger: '❌', info: 'ℹ️' };
+  el.innerHTML = `<span>${icons[type] || 'ℹ️'}</span> ${msg}`;
+  cnt.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, 3500);
+}
+
+/* =====================================================
+   ХЭШ-НАВИГАЦИЯ (для QR-кодов)
+===================================================== */
+window.addEventListener('load', () => {
+  const hash = window.location.hash;
+  if (hash === '#ar-mode' || hash.startsWith('#ar-student-')) {
+    showScreen('ar');
+    // Небольшая задержка для полной загрузки DOM и библиотек
+    setTimeout(() => {
+      if (state.students.length > 0) startAR();
+      else toast('Нет учеников для AR — добавьте через админ-панель', 'danger');
+    }, 1200);
+  }
+});
+
+/* =====================================================
+   ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+===================================================== */
+
+// Проверяем что камера доступна
+async function checkCameraPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
+  } catch(e) {
+    if (e.name === 'NotAllowedError') {
+      toast('⚠️ Разрешите доступ к камере в настройках браузера', 'danger');
+    } else {
+      toast('⚠️ Камера недоступна: ' + e.message, 'danger');
+    }
+    return false;
+  }
+}
+
+// Обёртка запуска AR с проверкой разрешений
+const _startAROriginal = startAR;
+startAR = async function() {
+  if (state.students.length === 0) {
+    toast('Добавьте хотя бы одного ученика', 'danger');
+    return;
+  }
+  const hasCamera = await checkCameraPermission();
+  if (!hasCamera) return;
+  _startAROriginal();
+};
+
+/* =====================================================
+   ВСТРОЕННЫЙ A-FRAME КОМПОНЕНТ: video-handler
+===================================================== */
+// Регистрируем кастомный компонент после загрузки A-Frame
+document.addEventListener('DOMContentLoaded', () => {
+  // Ждём загрузки A-Frame
+  const waitAFrame = setInterval(() => {
+    if (window.AFRAME) {
+      clearInterval(waitAFrame);
+      // Компонент уже не нужен — логика встроена в setupAREventListeners
+    }
+  }, 100);
+});
+</script>
+
+</body>
+</html>
